@@ -1,0 +1,3 @@
+{"id":1,"result":{"userAgent":"codex"}}
+{"id":2,"result":{"account":{"type":"apiKey"},"requiresOpenaiAuth":false}}
+{"id":3,"error":{"code":-32600,"message":"chatgpt authentication required to read rate limits"}}

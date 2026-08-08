@@ -1,0 +1,37 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Build and packaged output
+build/
+dist/
+*.exe
+*.zip
+
+# Local configuration, credentials, logs, and evidence
+.env
+.env.*
+!.env.example
+*.log
+.coverage
+coverage.xml
+.citation-evidence/
+.codex-usage-citations.json
+results/
+reports/raw/
+traces/
+
+# Model files and local caches
+*.gguf
+*.ggml
+*.safetensors
+*.bin
+*.pt
+*.pth
+.huggingface/
+.cache/

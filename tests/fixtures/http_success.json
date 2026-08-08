@@ -1,0 +1,1 @@
+{"plan_type":"plus","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":37,"limit_window_seconds":604800,"reset_after_seconds":271722,"reset_at":1786160194},"secondary_window":null},"credits":{"has_credits":false,"unlimited":false,"balance":"0"},"spend_control":false}
