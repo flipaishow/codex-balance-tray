@@ -48,7 +48,13 @@ python main.py
 
 在 Windows，程式會 best-effort 將目前的啟動命令寫入目前使用者的
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`；在 macOS，會寫入使用者專用的 LaunchAgent：
-`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist`。兩者都不需要系統管理員權限。
+`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist`。兩者都不需要系統管理員權限。macOS plist 會寫入最小化的 `EnvironmentVariables.PATH`，包含目前 PATH、Homebrew 與常見的使用者 CLI 資料夾。更新既有安裝後，請重新載入 LaunchAgent：
+
+```bash
+launchctl bootout "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist"
+launchctl kickstart -k "gui/$(id -u)/com.flipaishow.codexbalancetray"
+```
 
 語言偏好只保存 locale 名稱，不保存 token 或額度資料；Windows 預設位置是
 `%APPDATA%\CodexBalanceTray\settings.json`，macOS 預設位置是

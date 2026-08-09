@@ -48,7 +48,13 @@ If `codex` cannot be found, the application safely shows a `CLI_NOT_FOUND`/unava
 
 On Windows, the application best-effort registers the current startup command in the current user's
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` so the tray icon starts at Windows login. On macOS, it writes a per-user LaunchAgent at
-`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist`. These settings do not require administrator rights.
+`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist`. These settings do not require administrator rights. The plist includes a minimal `EnvironmentVariables.PATH` with the current PATH plus common Homebrew and user CLI directories. After upgrading an existing installation, reload the agent:
+
+```bash
+launchctl bootout "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist"
+launchctl kickstart -k "gui/$(id -u)/com.flipaishow.codexbalancetray"
+```
 
 The language preference stores only a locale identifier, not tokens or quota data. On Windows the default path is
 `%APPDATA%\CodexBalanceTray\settings.json`; on macOS it is

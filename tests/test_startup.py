@@ -127,6 +127,9 @@ class StartupTests(unittest.TestCase):
             self.assertEqual(payload["Label"], MACOS_LAUNCH_AGENT_LABEL)
             self.assertEqual(payload["ProgramArguments"], [str(executable)])
             self.assertTrue(payload["RunAtLoad"])
+            self.assertIn("EnvironmentVariables", payload)
+            self.assertIn("PATH", payload["EnvironmentVariables"])
+            self.assertIn("/opt/homebrew/bin", payload["EnvironmentVariables"]["PATH"])
             self.assertEqual(
                 registered_startup_command(
                     platform="darwin",
@@ -141,6 +144,34 @@ class StartupTests(unittest.TestCase):
                     command=command,
                 )
             )
+
+    def test_macos_repairs_existing_launch_agent_without_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            launch_agent = Path(directory) / "com.flipaishow.codexbalancetray.plist"
+            executable = PurePosixPath("/Applications/CodexBalanceTray.app/Contents/MacOS/CodexBalanceTray")
+            command = str(executable)
+            launch_agent.write_bytes(
+                plistlib.dumps(
+                    {
+                        "Label": MACOS_LAUNCH_AGENT_LABEL,
+                        "ProgramArguments": [str(executable)],
+                        "RunAtLoad": True,
+                    }
+                )
+            )
+
+            self.assertTrue(
+                ensure_startup_enabled(
+                    platform="darwin",
+                    launch_agent_path=launch_agent,
+                    command=command,
+                    environment={"PATH": "/usr/bin:/bin"},
+                )
+            )
+
+            payload = plistlib.loads(launch_agent.read_bytes())
+            self.assertIn("/opt/homebrew/bin", payload["EnvironmentVariables"]["PATH"])
+            self.assertIn("/usr/bin", payload["EnvironmentVariables"]["PATH"])
 
     def test_macos_source_startup_command_quotes_script_paths(self):
         command = build_startup_command(

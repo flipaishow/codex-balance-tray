@@ -48,7 +48,13 @@ python main.py
 
 Windows では現在のユーザーの
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` に起動コマンドを best-effort で登録します。macOS ではユーザー単位の LaunchAgent：
-`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist` に保存します。どちらも管理者権限は不要です。
+`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist` に保存します。どちらも管理者権限は不要です。macOS の plist には、現在の PATH、Homebrew、および一般的なユーザー CLI ディレクトリを含む最小限の `EnvironmentVariables.PATH` が設定されます。既存のインストールを更新した後は、LaunchAgent を再読み込みしてください。
+
+```bash
+launchctl bootout "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist"
+launchctl kickstart -k "gui/$(id -u)/com.flipaishow.codexbalancetray"
+```
 
 言語設定には locale 名だけを保存し、token や使用量データは保存しません。Windows の既定の保存先は
 `%APPDATA%\CodexBalanceTray\settings.json`、macOS は

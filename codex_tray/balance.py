@@ -21,6 +21,7 @@ import queue
 import random
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from typing import Any, Literal
@@ -53,25 +54,47 @@ DEFAULT_MAX_LINE_BYTES = 1_000_000
 DEFAULT_MAX_RETRY_AFTER_SECONDS = 3_600
 
 
+def _macos_path_entries(home: str | Path | None = None) -> list[str]:
+    home_path = Path(home).expanduser() if home is not None else Path.home()
+    return [
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        "/usr/local/bin",
+        "/usr/local/sbin",
+        str(home_path / ".local" / "bin"),
+        str(home_path / ".npm-global" / "bin"),
+        str(home_path / ".volta" / "bin"),
+        str(home_path / ".asdf" / "shims"),
+        str(home_path / "bin"),
+    ]
+
+
 def find_codex_executable(
     executable_name: str = "codex",
     *,
     which: Callable[[str], str | None] = shutil.which,
     platform: str | None = None,
     local_app_data: str | Path | None = None,
+    home: str | Path | None = None,
 ) -> str | None:
-    """Find Codex on PATH or in the Windows Codex Desktop installation.
-
-    The Windows desktop client keeps its CLI in a versioned directory under
-    ``%LOCALAPPDATA%\\OpenAI\\Codex\\bin`` and does not necessarily add that
-    directory to PATH.  PATH remains the first choice so normal CLI installs
-    and test doubles keep their existing behavior.
-    """
+    """Find Codex on PATH or in common desktop CLI installation locations."""
 
     executable = which(executable_name)
     if executable:
         return executable
-    if (platform or os.name) != "nt":
+
+    platform_name = platform or sys.platform
+    if platform_name == "darwin":
+        candidates = [Path(directory) / executable_name for directory in _macos_path_entries(home)]
+        for candidate in candidates:
+            try:
+                if candidate.is_file() and os.access(candidate, os.X_OK):
+                    return str(candidate)
+            except OSError:
+                continue
+        return None
+
+    if platform_name not in {"nt", "win32"}:
         return None
 
     if local_app_data is None:
@@ -89,6 +112,31 @@ def find_codex_executable(
         except OSError:
             continue
     return None
+
+
+def _subprocess_environment(
+    executable: str,
+    *,
+    platform: str | None = None,
+    home: str | Path | None = None,
+) -> dict[str, str]:
+    """Preserve Codex's environment and add paths needed by macOS launchd."""
+
+    environment = dict(os.environ)
+    if (platform or sys.platform) != "darwin":
+        return environment
+
+    path_values = [str(Path(executable).parent), *_macos_path_entries(home)]
+    path_values.extend(str(environment.get("PATH", "")).split(":"))
+    deduplicated: list[str] = []
+    seen: set[str] = set()
+    for value in path_values:
+        value = value.strip()
+        if value and value not in seen:
+            seen.add(value)
+            deduplicated.append(value)
+    environment["PATH"] = ":".join(deduplicated)
+    return environment
 
 
 @dataclass(frozen=True)
@@ -769,6 +817,8 @@ class AppServerBalanceClient:
         now: Callable[[], datetime] = _utc_now,
         executable_name: str = "codex",
         client_version: str = "0.1.0",
+        platform: str | None = None,
+        home: str | Path | None = None,
     ) -> None:
         self.which = which
         self.process_factory = process_factory
@@ -777,6 +827,8 @@ class AppServerBalanceClient:
         self.now = now
         self.executable_name = executable_name
         self.client_version = client_version
+        self.platform = platform
+        self.home = home
 
     @staticmethod
     def _request_lines(client_version: str) -> str:
@@ -930,6 +982,8 @@ class AppServerBalanceClient:
             executable = find_codex_executable(
                 self.executable_name,
                 which=self.which,
+                platform=self.platform,
+                home=self.home,
             )
         if not executable:
             return _result(
@@ -948,6 +1002,11 @@ class AppServerBalanceClient:
             "encoding": "utf-8",
             "errors": "replace",
             "shell": False,
+            "env": _subprocess_environment(
+                executable,
+                platform=self.platform,
+                home=self.home,
+            ),
         }
         if os.name == "nt":
             popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import os
 from pathlib import Path, PurePosixPath
 import plistlib
@@ -27,6 +28,49 @@ def _is_windows(platform: str | None = None) -> bool:
 
 def _is_macos(platform: str | None = None) -> bool:
     return _platform_name(platform) == "darwin"
+
+
+_MACOS_COMMON_PATHS = (
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    "/usr/local/bin",
+    "/usr/local/sbin",
+)
+_MACOS_USER_PATH_SUFFIXES = (
+    ".local/bin",
+    ".npm-global/bin",
+    ".volta/bin",
+    ".asdf/shims",
+    "bin",
+)
+
+
+def _macos_environment(
+    environment: Mapping[str, str] | None = None,
+    *,
+    home: Path | str | None = None,
+) -> dict[str, str]:
+    """Build a minimal, non-secret environment for a macOS LaunchAgent."""
+
+    source = environment if environment is not None else os.environ
+    home_path = Path(home).expanduser() if home is not None else Path.home()
+    path_values = str(source.get("PATH", "")).split(":")
+    path_values.extend(_MACOS_COMMON_PATHS)
+    path_values.extend(str(home_path / suffix) for suffix in _MACOS_USER_PATH_SUFFIXES)
+
+    deduplicated: list[str] = []
+    seen: set[str] = set()
+    for value in path_values:
+        value = value.strip()
+        if value and value not in seen:
+            seen.add(value)
+            deduplicated.append(value)
+
+    result = {"PATH": ":".join(deduplicated)}
+    codex_home = source.get("CODEX_HOME")
+    if codex_home:
+        result["CODEX_HOME"] = str(codex_home)
+    return result
 
 
 def _winreg_module() -> Any | None:
@@ -116,6 +160,14 @@ def _registry_or_none(registry: Any | None) -> Any | None:
     return registry if registry is not None else _winreg_module()
 
 
+def _load_launch_agent_payload(path: Path) -> dict[str, Any] | None:
+    try:
+        payload = plistlib.loads(path.read_bytes())
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def registered_startup_command(
     *,
     registry: Any | None = None,
@@ -128,11 +180,8 @@ def registered_startup_command(
         path = Path(launch_agent_path) if launch_agent_path is not None else default_launch_agent_path()
         if path is None:
             return None
-        try:
-            payload = plistlib.loads(path.read_bytes())
-        except (OSError, ValueError, plistlib.InvalidFileException):
-            return None
-        arguments = payload.get("ProgramArguments") if isinstance(payload, dict) else None
+        payload = _load_launch_agent_payload(path)
+        arguments = payload.get("ProgramArguments") if payload is not None else None
         if not isinstance(arguments, list) or not all(isinstance(argument, str) for argument in arguments):
             return None
         return shlex.join(arguments)
@@ -157,10 +206,32 @@ def registered_startup_command(
     return str(value)
 
 
+def registered_startup_environment(
+    *,
+    launch_agent_path: Path | str | None = None,
+    platform: str | None = None,
+) -> dict[str, str] | None:
+    """Read the safe environment fields stored in a macOS LaunchAgent."""
+
+    if not _is_macos(platform):
+        return None
+    path = Path(launch_agent_path) if launch_agent_path is not None else default_launch_agent_path()
+    if path is None:
+        return None
+    payload = _load_launch_agent_payload(path)
+    environment = payload.get("EnvironmentVariables") if payload is not None else None
+    if not isinstance(environment, dict):
+        return None
+    if not all(isinstance(key, str) and isinstance(value, str) for key, value in environment.items()):
+        return None
+    return dict(environment)
+
+
 def _enable_macos_startup(
     *,
     command: str,
     launch_agent_path: Path | str | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> bool:
     path = Path(launch_agent_path) if launch_agent_path is not None else default_launch_agent_path()
     if path is None:
@@ -173,6 +244,7 @@ def _enable_macos_startup(
         payload = {
             "Label": MACOS_LAUNCH_AGENT_LABEL,
             "ProgramArguments": arguments,
+            "EnvironmentVariables": _macos_environment(environment),
             "RunAtLoad": True,
         }
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -205,6 +277,7 @@ def enable_startup(
     command: str | None = None,
     launch_agent_path: Path | str | None = None,
     platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> bool:
     """Write the tray command to the current user's login-startup store."""
 
@@ -213,6 +286,7 @@ def enable_startup(
         return _enable_macos_startup(
             command=startup_command,
             launch_agent_path=launch_agent_path,
+            environment=environment,
         )
     if not _is_windows(platform):
         return False
@@ -246,19 +320,32 @@ def ensure_startup_enabled(
     command: str | None = None,
     launch_agent_path: Path | str | None = None,
     platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> bool:
     """Ensure login startup is configured without requiring administrator rights."""
 
     startup_command = command if command is not None else build_startup_command(platform=platform)
-    if registered_startup_command(
+    registered_command = registered_startup_command(
         registry=registry,
         launch_agent_path=launch_agent_path,
         platform=platform,
-    ) == startup_command:
-        return True
+    )
+    if registered_command == startup_command:
+        if not _is_macos(platform):
+            return True
+        expected_environment = _macos_environment(environment)
+        registered_environment = registered_startup_environment(
+            launch_agent_path=launch_agent_path,
+            platform=platform,
+        )
+        if registered_environment is not None and all(
+            registered_environment.get(key) == value for key, value in expected_environment.items()
+        ):
+            return True
     return enable_startup(
         registry=registry,
         command=startup_command,
         launch_agent_path=launch_agent_path,
         platform=platform,
+        environment=environment,
     )

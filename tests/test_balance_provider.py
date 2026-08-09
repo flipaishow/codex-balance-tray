@@ -6,6 +6,7 @@ import threading
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import requests
 
@@ -97,6 +98,48 @@ class AppServerBalanceClientTests(unittest.TestCase):
         )
 
         self.assertEqual(executable, "/opt/homebrew/bin/codex")
+
+    def test_finds_codex_in_user_macos_bin_when_launchagent_path_is_minimal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            candidate = home / ".local" / "bin" / "codex"
+            candidate.parent.mkdir(parents=True)
+            candidate.write_bytes(b"fake executable marker")
+            candidate.chmod(0o755)
+
+            executable = find_codex_executable(
+                which=lambda _name: None,
+                platform="darwin",
+                home=home,
+            )
+
+        self.assertEqual(executable, str(candidate))
+
+    def test_passes_macos_path_to_codex_process(self):
+        process = FakeProcess(
+            app_server_lines(
+                {"type": "chatgpt"},
+                rate_limits={
+                    "rateLimits": {
+                        "primary": {"usedPercent": 10, "resetsAt": 1786160194}
+                    }
+                },
+            )
+        )
+
+        def process_factory(_args, **kwargs):
+            self.assertIn("/opt/homebrew/bin", kwargs["env"]["PATH"])
+            self.assertIn("/usr/bin", kwargs["env"]["PATH"])
+            return process
+
+        with patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}, clear=False):
+            result = AppServerBalanceClient(
+                which=lambda _name: "/opt/homebrew/bin/codex",
+                process_factory=process_factory,
+                platform="darwin",
+            ).fetch()
+
+        self.assertEqual(result.status, "ok")
 
     def test_fetches_chatgpt_rate_limits_through_official_app_server(self):
         process = FakeProcess(
