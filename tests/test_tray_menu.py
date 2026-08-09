@@ -41,6 +41,7 @@ class TrayMenuTests(unittest.TestCase):
             provider=MockBalanceProvider(),
             icon_factory=factory,
             poll_interval_seconds=300,
+            locale="en",
         )
 
         app._create_icon()
@@ -60,6 +61,7 @@ class TrayMenuTests(unittest.TestCase):
                 provider=MockBalanceProvider(),
                 icon_factory=factory,
                 language_path=Path(directory) / "settings.json",
+                locale="en",
             )
             app._create_icon()
             app._on_update(
@@ -85,7 +87,7 @@ class TrayMenuTests(unittest.TestCase):
 
     def test_language_menu_exposes_all_four_supported_locales(self):
         factory = _FakeIconFactory()
-        app = TrayApplication(provider=MockBalanceProvider(), icon_factory=factory)
+        app = TrayApplication(provider=MockBalanceProvider(), icon_factory=factory, locale="en")
 
         app._create_icon()
 
@@ -98,7 +100,7 @@ class TrayMenuTests(unittest.TestCase):
 
     def test_setting_interval_updates_monitor_without_fetching(self):
         provider = MockBalanceProvider()
-        app = TrayApplication(provider=provider, icon_factory=_FakeIconFactory())
+        app = TrayApplication(provider=provider, icon_factory=_FakeIconFactory(), locale="en")
 
         app.set_poll_interval(600)
 
@@ -108,7 +110,7 @@ class TrayMenuTests(unittest.TestCase):
 
     def test_error_state_is_explicit_and_preserves_last_good_value(self):
         factory = _FakeIconFactory()
-        app = TrayApplication(provider=MockBalanceProvider(), icon_factory=factory)
+        app = TrayApplication(provider=MockBalanceProvider(), icon_factory=factory, locale="en")
         app._create_icon()
         app._on_update(
             BalanceResult(
@@ -127,7 +129,7 @@ class TrayMenuTests(unittest.TestCase):
 
     def test_manual_refresh_does_not_run_provider_on_tray_callback(self):
         provider = MockBalanceProvider()
-        app = TrayApplication(provider=provider, icon_factory=_FakeIconFactory())
+        app = TrayApplication(provider=provider, icon_factory=_FakeIconFactory(), locale="en")
         app._create_icon()
 
         with patch.object(app.monitor, "request_refresh", return_value=True) as refresh:

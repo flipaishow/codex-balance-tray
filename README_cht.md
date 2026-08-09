@@ -2,7 +2,7 @@
 
 [English README](README.md) ｜ [简体中文](README_chs.md) ｜ [日本語](README_jp.md) ｜ 繁體中文
 
-Windows 通知區工具：在通知區圖示顯示 Codex ChatGPT 方案主要額度視窗的剩餘百分比、重置資訊與安全狀態。
+Windows 通知區／macOS 選單列工具：在通知區圖示或選單列顯示 Codex ChatGPT 方案主要額度視窗的剩餘百分比、重置資訊與安全狀態。
 
 > 這個儲存庫只包含可公開的原始碼、離線測試 fixture 與文件；不包含 Codex 憑證、原始 trace、研究引用快取、模型檔案或 build 產物。
 
@@ -18,7 +18,7 @@ Windows 通知區工具：在通知區圖示顯示 Codex ChatGPT 方案主要額
 
 ## 資料來源與認證邊界
 
-程式預設透過官方 `codex app-server --listen stdio://` 取得 `BalanceResult`。Codex CLI 負責 OAuth token refresh、`CODEX_HOME` 與 Windows Credential Manager／keyring；通知區程式不直接讀取或解密 Credential Manager，也不會把 token 寫入自己的設定檔或日誌。
+程式預設透過官方 `codex app-server --listen stdio://` 取得 `BalanceResult`。Codex CLI 負責 OAuth token refresh、`CODEX_HOME` 與 平台 credential store／keyring；通知區程式不直接讀取或解密 Credential Manager，也不會把 token 寫入自己的設定檔或日誌。
 
 第一次使用前，先在命令列完成官方登入：
 
@@ -32,7 +32,7 @@ codex login
 
 需求：
 
-- Windows 10 或更新版本；
+- Windows 10 或更新版本，或 macOS；
 - Python 3.11（目前離線測試驗證版本）；
 - 官方 Codex CLI（只有實際啟動通知區程式時才需要）；
 - `requests`、`Pillow`、`pystray`，可由 `requirements.txt` 安裝。
@@ -46,11 +46,13 @@ python main.py
 
 若找不到 `codex`，程式會安全顯示 `CLI_NOT_FOUND`／不可用狀態，不會因為找不到 CLI 而崩潰。請安裝官方 Codex CLI、確認新的命令提示字元能執行 `codex`，再依需要執行 `codex login`。
 
-第一次啟動時，程式會 best-effort 將目前的啟動命令寫入目前 Windows 使用者的
-`HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`，讓通知區圖示在登入 Windows 時自動啟動。這是使用者自己的設定，不需要系統管理員權限；可從 Windows 的「工作管理員 → 啟動」停用 `CodexBalanceTray`。
+在 Windows，程式會 best-effort 將目前的啟動命令寫入目前使用者的
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`；在 macOS，會寫入使用者專用的 LaunchAgent：
+`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist`。兩者都不需要系統管理員權限。
 
 語言偏好只保存 locale 名稱，不保存 token 或額度資料；Windows 預設位置是
-`%APPDATA%\\CodexBalanceTray\\settings.json`。新安裝或無有效設定檔時預設為 English。
+`%APPDATA%\CodexBalanceTray\settings.json`，macOS 預設位置是
+`~/Library/Application Support/CodexBalanceTray/settings.json`。新安裝或無有效設定檔時預設為 English。
 
 ## 測試
 
@@ -73,6 +75,17 @@ python -m PyInstaller --noconfirm --clean CodexBalanceTray.spec
 ```
 
 產物會放在 `dist/CodexBalanceTray.exe`；build 與 dist 目錄已列入 `.gitignore`，不應提交到儲存庫。
+
+## 建立 macOS App
+
+原生 macOS 產物必須在 Mac 或 macOS CI runner 上建置；Windows 上的 PyInstaller 不能交叉產生 macOS App：
+
+```bash
+python -m pip install -r requirements.txt pyinstaller
+python -m PyInstaller --noconfirm --clean --windowed --name CodexBalanceTray main.py
+```
+
+視窗化產物通常會放在 `dist/CodexBalanceTray.app`。`requirements.txt` 會安裝 macOS `pystray` backend 所需的 Cocoa／Quartz 相依套件。
 
 ## 專案結構
 

@@ -7,6 +7,7 @@ from codex_tray.i18n import (
     DEFAULT_LOCALE,
     LocaleStore,
     SUPPORTED_LOCALES,
+    default_locale_path,
     language_label,
     normalize_locale,
     translate,
@@ -48,6 +49,18 @@ class InternationalizationTests(unittest.TestCase):
 
             self.assertEqual(LocaleStore(path).load(), "en")
             self.assertEqual(translate("menu.quit", "fr-FR"), "Quit")
+
+    def test_macos_uses_application_support_for_locale_settings(self):
+        self.assertEqual(
+            default_locale_path(platform="darwin", home=Path("/Users/test-user")),
+            Path("/Users/test-user/Library/Application Support/CodexBalanceTray/settings.json"),
+        )
+
+    def test_linux_fallback_keeps_xdg_style_locale_settings_path(self):
+        self.assertEqual(
+            default_locale_path(platform="linux", home=Path("/home/test-user")),
+            Path("/home/test-user/.config/codex-balance-tray/settings.json"),
+        )
 
     def test_presentation_supports_all_requested_locales(self):
         result = BalanceResult(

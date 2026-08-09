@@ -43,7 +43,7 @@ class TrayApplicationTests(unittest.TestCase):
 
     def test_update_replaces_icon_image_and_tooltip(self):
         factory = FakeIconFactory()
-        app = TrayApplication(icon_factory=factory)
+        app = TrayApplication(icon_factory=factory, locale="en")
         app._create_icon()
 
         app._on_update(self._snapshot())
@@ -53,7 +53,7 @@ class TrayApplicationTests(unittest.TestCase):
 
     def test_error_keeps_tray_alive_and_shows_recovery_hint(self):
         factory = FakeIconFactory()
-        app = TrayApplication(icon_factory=factory)
+        app = TrayApplication(icon_factory=factory, locale="en")
         app._create_icon()
 
         app._on_error("Codex login required")

@@ -1,11 +1,16 @@
+import plistlib
+import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from codex_tray.startup import (
+    MACOS_LAUNCH_AGENT_LABEL,
     RUN_KEY_PATH,
     STARTUP_VALUE_NAME,
     build_startup_command,
+    default_launch_agent_path,
     ensure_startup_enabled,
+    registered_startup_command,
 )
 
 
@@ -97,6 +102,55 @@ class StartupTests(unittest.TestCase):
             [entry for entry in registry.opened_paths if entry[2] == registry.KEY_SET_VALUE],
             [],
         )
+
+
+    def test_macos_builds_and_persists_a_launch_agent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "home"
+            launch_agent = default_launch_agent_path(home=home, platform="darwin")
+            executable = PurePosixPath("/Applications/CodexBalanceTray.app/Contents/MacOS/CodexBalanceTray")
+            command = build_startup_command(
+                executable=executable,
+                frozen=True,
+                platform="darwin",
+            )
+
+            self.assertTrue(
+                ensure_startup_enabled(
+                    platform="darwin",
+                    launch_agent_path=launch_agent,
+                    command=command,
+                )
+            )
+
+            payload = plistlib.loads(launch_agent.read_bytes())
+            self.assertEqual(payload["Label"], MACOS_LAUNCH_AGENT_LABEL)
+            self.assertEqual(payload["ProgramArguments"], [str(executable)])
+            self.assertTrue(payload["RunAtLoad"])
+            self.assertEqual(
+                registered_startup_command(
+                    platform="darwin",
+                    launch_agent_path=launch_agent,
+                ),
+                command,
+            )
+            self.assertTrue(
+                ensure_startup_enabled(
+                    platform="darwin",
+                    launch_agent_path=launch_agent,
+                    command=command,
+                )
+            )
+
+    def test_macos_source_startup_command_quotes_script_paths(self):
+        command = build_startup_command(
+            executable=PurePosixPath("/usr/bin/python3"),
+            script=PurePosixPath("/Users/test-user/Codex Tray/main.py"),
+            frozen=False,
+            platform="darwin",
+        )
+
+        self.assertEqual(command, "/usr/bin/python3 '/Users/test-user/Codex Tray/main.py'")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 [English README](README.md) ｜ [繁體中文](README_cht.md) ｜ [简体中文](README_chs.md) ｜ 日本語
 
-Windows の通知領域で、Codex ChatGPT プランの主要な使用量ウィンドウについて、残量の割合、リセット情報、安全状態を表示するユーティリティです。
+Windows の通知領域／macOS のメニューバーで、Codex ChatGPT プランの主要な使用量ウィンドウについて、残量の割合、リセット情報、安全状態を表示するユーティリティです。
 
 > このリポジトリには公開可能なソースコード、オフラインテスト fixture、ドキュメントのみを含めます。Codex の認証情報、raw trace、研究引用キャッシュ、モデルファイル、build 生成物は含みません。
 
@@ -18,7 +18,7 @@ Windows の通知領域で、Codex ChatGPT プランの主要な使用量ウィ�
 
 ## データソースと認証境界
 
-アプリケーションは既定で公式の `codex app-server --listen stdio://` を通じて `BalanceResult` を取得します。OAuth token refresh、`CODEX_HOME`、Windows Credential Manager／keyring の処理は Codex CLI が担当します。通知領域アプリケーションが Credential Manager を直接読み取ったり復号したりすることはなく、独自の設定ファイルやログに token を保存しません。
+アプリケーションは既定で公式の `codex app-server --listen stdio://` を通じて `BalanceResult` を取得します。OAuth token refresh、`CODEX_HOME`、プラットフォームの credential store／keyring の処理は Codex CLI が担当します。通知領域アプリケーションが Credential Manager を直接読み取ったり復号したりすることはなく、独自の設定ファイルやログに token を保存しません。
 
 初回使用前に、コマンドプロンプトで公式ログインを完了してください。
 
@@ -32,7 +32,7 @@ codex login
 
 必要なもの：
 
-- Windows 10 以降
+- Windows 10 以降、または macOS
 - Python 3.11（オフラインテストで検証したバージョン）
 - 公式 Codex CLI（通知領域アプリケーションを実際に起動する場合のみ必要）
 - `requirements.txt` からインストールできる `requests`、`Pillow`、`pystray`
@@ -46,11 +46,13 @@ python main.py
 
 `codex` が見つからない場合は、アプリケーションがクラッシュせず `CLI_NOT_FOUND`／利用不可状態を表示します。公式 Codex CLI をインストールし、新しいコマンドプロンプトで `codex` を実行できることを確認してから、必要に応じて `codex login` を実行してください。
 
-初回起動時、アプリケーションは現在の起動コマンドを現在の Windows ユーザーの
-`HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` に best-effort で登録し、Windows ログイン時に通知領域アイコンを起動します。ユーザー単位の設定なので管理者権限は不要です。Windows の「タスク マネージャー → スタートアップ」から `CodexBalanceTray` を無効化できます。
+Windows では現在のユーザーの
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` に起動コマンドを best-effort で登録します。macOS ではユーザー単位の LaunchAgent：
+`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist` に保存します。どちらも管理者権限は不要です。
 
 言語設定には locale 名だけを保存し、token や使用量データは保存しません。Windows の既定の保存先は
-`%APPDATA%\\CodexBalanceTray\\settings.json` です。新規インストール時、または設定ファイルが無効な場合は English を使用します。
+`%APPDATA%\CodexBalanceTray\settings.json`、macOS は
+`~/Library/Application Support/CodexBalanceTray/settings.json` です。新規インストール時、または設定ファイルが無効な場合は English を使用します。
 
 ## テスト
 
@@ -73,6 +75,17 @@ python -m PyInstaller --noconfirm --clean CodexBalanceTray.spec
 ```
 
 生成物は `dist/CodexBalanceTray.exe` に出力されます。`build` と `dist` は `.gitignore` に含まれているため、リポジトリへコミットしないでください。
+
+## macOS App の作成
+
+macOS のネイティブ生成物は Mac または macOS CI runner 上で作成してください。Windows 上の PyInstaller から macOS App をクロスビルドすることはできません。
+
+```bash
+python -m pip install -r requirements.txt pyinstaller
+python -m PyInstaller --noconfirm --clean --windowed --name CodexBalanceTray main.py
+```
+
+ウィンドウ表示の生成物は通常 `dist/CodexBalanceTray.app` に出力されます。`requirements.txt` から macOS の `pystray` backend に必要な Cocoa／Quartz 依存関係もインストールされます。
 
 ## プロジェクト構成
 

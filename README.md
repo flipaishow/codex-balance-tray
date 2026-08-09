@@ -1,6 +1,6 @@
 # Codex Balance Tray
 
-A Windows notification-area utility that displays the remaining percentage, reset information, and safe status of the primary quota window for a Codex ChatGPT plan.
+A Windows notification-area and macOS menu-bar utility that displays the remaining percentage, reset information, and safe status of the primary quota window for a Codex ChatGPT plan.
 
 [Traditional Chinese](README_cht.md) · [Simplified Chinese](README_chs.md) · [日本語](README_jp.md)
 
@@ -18,7 +18,7 @@ A Windows notification-area utility that displays the remaining percentage, rese
 
 ## Data Sources and Authentication Boundary
 
-The application uses the official `codex app-server --listen stdio://` by default to obtain a `BalanceResult`. The Codex CLI owns OAuth token refresh, `CODEX_HOME`, and Windows Credential Manager/keyring access. The tray application does not directly read or decrypt Credential Manager data and does not write tokens to its own settings or logs.
+The application uses the official `codex app-server --listen stdio://` by default to obtain a `BalanceResult`. The Codex CLI owns OAuth token refresh, `CODEX_HOME`, and platform credential store/keyring access. The tray application does not directly read or decrypt Credential Manager data and does not write tokens to its own settings or logs.
 
 Before first use, complete the official login from a command prompt:
 
@@ -32,7 +32,7 @@ To use a private HTTP-compatible source, the caller must explicitly inject an `H
 
 Requirements:
 
-- Windows 10 or later;
+- Windows 10 or later, or macOS;
 - Python 3.11 (the version used for offline test verification);
 - the official Codex CLI (required only when actually running the tray application);
 - `requests`, `Pillow`, and `pystray`, installable from `requirements.txt`.
@@ -46,11 +46,13 @@ python main.py
 
 If `codex` cannot be found, the application safely shows a `CLI_NOT_FOUND`/unavailable state instead of crashing. Install the official Codex CLI, confirm that a new command prompt can run `codex`, and run `codex login` when needed.
 
-On first launch, the application best-effort registers the current startup command in the current Windows user's
-`HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` so the tray icon starts at Windows login. This is a per-user setting and does not require administrator rights; `CodexBalanceTray` can be disabled from Windows Task Manager → Startup.
+On Windows, the application best-effort registers the current startup command in the current user's
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` so the tray icon starts at Windows login. On macOS, it writes a per-user LaunchAgent at
+`~/Library/LaunchAgents/com.flipaishow.codexbalancetray.plist`. These settings do not require administrator rights.
 
 The language preference stores only a locale identifier, not tokens or quota data. On Windows the default path is
-`%APPDATA%\\CodexBalanceTray\\settings.json`. A new installation or invalid settings file defaults to English.
+`%APPDATA%\CodexBalanceTray\settings.json`; on macOS it is
+`~/Library/Application Support/CodexBalanceTray/settings.json`. A new installation or invalid settings file defaults to English.
 
 ## Tests
 
@@ -74,6 +76,17 @@ python -m PyInstaller --noconfirm --clean CodexBalanceTray.spec
 
 The artifact is written to `dist/CodexBalanceTray.exe`; `build` and `dist` are in `.gitignore` and must not be committed.
 
+## Building on macOS
+
+Build the native macOS application on a Mac or macOS CI runner; PyInstaller does not cross-build macOS artifacts from Windows:
+
+```bash
+python -m pip install -r requirements.txt pyinstaller
+python -m PyInstaller --noconfirm --clean --windowed --name CodexBalanceTray main.py
+```
+
+The windowed artifact is normally emitted as `dist/CodexBalanceTray.app`. The macOS `pystray` backend installs its Cocoa/Quartz dependency through `requirements.txt`.
+
 ## Project Structure
 
 ```text
@@ -84,7 +97,7 @@ codex_tray/forecast.py       conservative linear quota-exhaustion estimate
 tests/                       offline unit and provider contract tests
 tests/fixtures/              secret-free JSON/JSONL test data
 CODEX_USAGE_INTERFACE.md     data-source, interface, and security-boundary notes
-CodexBalanceTray.spec        Windows EXE build configuration
+CodexBalanceTray.spec        Windows EXE build configuration; macOS builds run on a Mac host
 ```
 
 ## Updates and Known Limitations

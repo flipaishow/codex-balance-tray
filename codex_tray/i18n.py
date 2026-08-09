@@ -12,6 +12,7 @@ from collections.abc import Mapping
 import json
 import os
 from pathlib import Path
+import sys
 from typing import Any
 
 
@@ -448,14 +449,23 @@ def localized_error_key(
     return _STATUS_ERROR_KEYS.get(str(status))
 
 
-def default_locale_path() -> Path:
+def default_locale_path(
+    *,
+    platform: str | None = None,
+    home: Path | str | None = None,
+) -> Path:
     """Return the non-secret settings path used by the tray application."""
 
-    if os.name == "nt":
+    platform_name = platform or sys.platform
+    home_path = Path(home).expanduser() if home is not None else Path.home()
+    if platform_name in {"nt", "win32"}:
         app_data = os.environ.get("APPDATA")
         if app_data:
             return Path(app_data) / "CodexBalanceTray" / "settings.json"
-    return Path.home() / ".config" / "codex-balance-tray" / "settings.json"
+        return home_path / "AppData" / "Roaming" / "CodexBalanceTray" / "settings.json"
+    if platform_name == "darwin":
+        return home_path / "Library" / "Application Support" / "CodexBalanceTray" / "settings.json"
+    return home_path / ".config" / "codex-balance-tray" / "settings.json"
 
 
 class LocaleStore:

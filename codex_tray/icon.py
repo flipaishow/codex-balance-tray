@@ -1,4 +1,4 @@
-"""Generate the compact image shown in the Windows notification area."""
+"""Generate the compact image shown in the Windows tray or macOS menu bar."""
 
 from __future__ import annotations
 
@@ -71,6 +71,9 @@ def color_for_remaining(snapshot: Any) -> str:
 def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [
         Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "segoeui.ttf",
+        Path("/System/Library/Fonts/Helvetica.ttc"),
+        Path("/System/Library/Fonts/Hiragino Sans GB.ttc"),
+        Path("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc"),
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
     ]
     for path in candidates:

@@ -1,4 +1,4 @@
-"""The pystray-based Windows notification-area application."""
+"""The pystray-based Windows notification-area and macOS menu-bar application."""
 
 from __future__ import annotations
 

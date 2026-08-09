@@ -90,6 +90,14 @@ class AppServerBalanceClientTests(unittest.TestCase):
 
         self.assertEqual(executable, str(candidate))
 
+    def test_uses_codex_from_path_on_macos(self):
+        executable = find_codex_executable(
+            which=lambda _name: "/opt/homebrew/bin/codex",
+            platform="darwin",
+        )
+
+        self.assertEqual(executable, "/opt/homebrew/bin/codex")
+
     def test_fetches_chatgpt_rate_limits_through_official_app_server(self):
         process = FakeProcess(
             [
