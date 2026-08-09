@@ -30,9 +30,8 @@ class UsageForecastTests(unittest.TestCase):
         self.assertEqual(forecast.status, "on_track")
         self.assertAlmostEqual(forecast.average_daily_percent or 0, 9.25, places=2)
         self.assertAlmostEqual(forecast.projected_remaining_percent or 0, 35.25, places=2)
-        self.assertIn("平均消耗：9.3%／天", tooltip)
-        self.assertIn("重置前：約 35.3%", tooltip)
-        self.assertIn("可撐到 reset", tooltip)
+        self.assertIn("Avg 9.3%/d · runout 6 days 19 hours", tooltip)
+        self.assertIn("At reset: ~35.3% left · on track", tooltip)
         self.assertLessEqual(len(tooltip), 128)
 
     def test_at_risk_forecast_warns_before_reset(self):
@@ -44,8 +43,8 @@ class UsageForecastTests(unittest.TestCase):
         self.assertEqual(forecast.status, "at_risk")
         self.assertLess(forecast.estimated_exhaustion_seconds or 0, forecast.reset_after_seconds or 0)
         self.assertLess(forecast.projected_remaining_percent or 0, 0)
-        self.assertIn("可能在 reset 前用完", tooltip)
-        self.assertIn("預估 18 小時後用完", tooltip)
+        self.assertIn("Risk: runout before reset", tooltip)
+        self.assertIn("runout 18 hours", tooltip)
 
     def test_short_observation_window_is_marked_insufficient(self):
         snapshot = self._snapshot(used=10, reset_after=7 * 24 * 60 * 60 - 30 * 60)
@@ -55,8 +54,8 @@ class UsageForecastTests(unittest.TestCase):
 
         self.assertEqual(forecast.status, "insufficient_data")
         self.assertIsNone(forecast.average_daily_percent)
-        self.assertNotIn("平均消耗：", tooltip)
-        self.assertNotIn("可能在 reset 前用完", tooltip)
+        self.assertNotIn("Avg ", tooltip)
+        self.assertNotIn("Risk: runout before reset", tooltip)
 
     def test_zero_usage_does_not_invent_an_exhaustion_time(self):
         snapshot = self._snapshot(used=0, reset_after=3 * 24 * 60 * 60)
@@ -67,7 +66,8 @@ class UsageForecastTests(unittest.TestCase):
         self.assertEqual(forecast.status, "no_usage")
         self.assertEqual(forecast.average_daily_percent, 0)
         self.assertIsNone(forecast.estimated_exhaustion_seconds)
-        self.assertIn("目前未觀測到消耗", tooltip)
+        self.assertIn("Avg 0%/d · no usage observed", tooltip)
+        self.assertIn("At reset: ~100% left · no usage observed", tooltip)
 
 
 if __name__ == "__main__":

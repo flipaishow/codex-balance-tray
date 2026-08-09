@@ -13,6 +13,12 @@ import re
 from typing import Any
 
 from .forecast import calculate_usage_forecast
+from .i18n import (
+    DEFAULT_LOCALE,
+    localized_error_key,
+    normalize_locale,
+    translate,
+)
 
 
 _PLAN_NAMES = {
@@ -24,18 +30,20 @@ _PLAN_NAMES = {
     "enterprise": "Enterprise",
 }
 
-_STATUS_MESSAGES = {
-    "loading": "正在取得 Codex 額度資料…",
-    "auth_required": "尚未登入 Codex",
-    "unsupported_auth": "目前登入方式沒有 ChatGPT Codex 額度資料",
-    "unsupported_route": "Codex 版本／endpoint 不相容",
-    "network_error": "網路暫時無法取得 Codex 額度",
-    "rate_limited": "Codex 服務暫時限流",
-    "cli_unavailable": "找不到 Codex CLI",
-    "schema_changed": "Codex 回應格式已變更",
-    "service_error": "Codex 服務暫時無法提供額度",
-    "unavailable": "目前沒有可用的額度資料",
-}
+_STATUS_NAMES = frozenset(
+    {
+        "loading",
+        "auth_required",
+        "unsupported_auth",
+        "unsupported_route",
+        "network_error",
+        "rate_limited",
+        "cli_unavailable",
+        "schema_changed",
+        "service_error",
+        "unavailable",
+    }
+)
 
 # Windows Shell_NotifyIcon rejects tooltip strings longer than 128 characters.
 MAX_TOOLTIP_LENGTH = 128
@@ -71,9 +79,9 @@ def _status(result: Any, override: str | None = None) -> str:
     return "ok" if not _value(result, "error", "error_message") else "unavailable"
 
 
-def _plan_name(plan_type: str | None) -> str:
+def _plan_name(plan_type: str | None, locale: Any = DEFAULT_LOCALE) -> str:
     if not plan_type:
-        return "未知方案"
+        return translate("plan.unknown", locale)
     return _PLAN_NAMES.get(plan_type.lower(), plan_type.replace("_", " ").title())
 
 
@@ -100,9 +108,9 @@ def _remaining_value(result: Any) -> float | int | None:
     return value
 
 
-def _remaining_text(result: Any) -> str:
+def _remaining_text(result: Any, locale: Any = DEFAULT_LOCALE) -> str:
     if _value(result, "unlimited") is True:
-        return "無上限"
+        return translate("remaining.unlimited", locale)
     value = _remaining_value(result)
     if value is None:
         return "--"
@@ -110,13 +118,18 @@ def _remaining_text(result: Any) -> str:
     return f"{value:g}{unit}" if isinstance(value, float) else f"{value}{unit}"
 
 
-def format_remaining(snapshot: Any) -> str:
+def format_remaining(snapshot: Any, *, locale: Any = DEFAULT_LOCALE) -> str:
     """Return a safe remaining value without inventing a percentage."""
 
-    return _remaining_text(snapshot)
+    return _remaining_text(snapshot, locale)
 
 
-def format_tray_title(snapshot: Any, *, status: str | None = None) -> str:
+def format_tray_title(
+    snapshot: Any,
+    *,
+    status: str | None = None,
+    locale: Any = DEFAULT_LOCALE,
+) -> str:
     """Short text rendered into the tray icon.
 
     A stale value gets an asterisk so the user cannot mistake cached data for
@@ -126,33 +139,41 @@ def format_tray_title(snapshot: Any, *, status: str | None = None) -> str:
     if _value(snapshot, "unlimited") is True:
         title = "∞"
     else:
-        title = _remaining_text(snapshot)
+        title = _remaining_text(snapshot, locale)
     if _status(snapshot, status) == "stale" and title not in {"--", "∞"}:
         return f"{title}*"
     return title
 
 
-def format_duration(seconds: int | float | None) -> str:
+def _duration_unit(value: int, unit: str, locale: Any) -> str:
+    if normalize_locale(locale) == "zh-TW":
+        labels = {"day": "天", "hour": "小時", "minute": "分鐘"}
+        return f"{value} {labels[unit]}"
+    label = unit if value == 1 else f"{unit}s"
+    return f"{value} {label}"
+
+
+def format_duration(seconds: int | float | None, locale: Any = DEFAULT_LOCALE) -> str:
     if seconds is None:
-        return "未知"
+        return translate("duration.unknown", locale)
     try:
         seconds = int(seconds)
     except (TypeError, ValueError):
-        return "未知"
+        return translate("duration.unknown", locale)
     if seconds <= 0:
-        return "即將重置"
+        return translate("duration.resetting_soon", locale)
 
     days, remainder = divmod(seconds, 24 * 60 * 60)
     hours, remainder = divmod(remainder, 60 * 60)
     minutes, _ = divmod(remainder, 60)
     parts: list[str] = []
     if days:
-        parts.append(f"{days} 天")
+        parts.append(_duration_unit(days, "day", locale))
     if hours:
-        parts.append(f"{hours} 小時")
+        parts.append(_duration_unit(hours, "hour", locale))
     if minutes and len(parts) < 2:
-        parts.append(f"{minutes} 分鐘")
-    return " ".join(parts) or "不到 1 分鐘"
+        parts.append(_duration_unit(minutes, "minute", locale))
+    return " ".join(parts) or translate("duration.less_than_minute", locale)
 
 
 def _format_timestamp(value: Any) -> str | None:
@@ -171,8 +192,9 @@ def _format_timestamp(value: Any) -> str | None:
     return text or None
 
 
-def status_message(status: str) -> str:
-    return _STATUS_MESSAGES.get(status, "目前沒有可用的額度資料")
+def status_message(status: str, locale: Any = DEFAULT_LOCALE) -> str:
+    key = f"status.{status}"
+    return translate(key if status in _STATUS_NAMES else "status.unavailable", locale)
 
 
 def redact_error_message(value: Any) -> str:
@@ -191,6 +213,29 @@ def redact_error_message(value: Any) -> str:
     return text[:240]
 
 
+def _localized_error_message(
+    value: Any,
+    *,
+    locale: Any,
+    status: str,
+    error_code: Any = None,
+) -> str:
+    text = str(value).strip()
+    safe_text = redact_error_message(text)
+    # Preserve redaction evidence instead of replacing a credential-bearing
+    # message with a generic status string. Compact long diagnostic blobs so
+    # every redaction marker remains visible within the Windows tooltip limit.
+    if safe_text != text or "[REDACTED]" in safe_text:
+        redaction_count = safe_text.count("[REDACTED]")
+        if redaction_count > 1 and len(safe_text) > 80:
+            return " ".join("[REDACTED]" for _ in range(redaction_count))
+        return safe_text
+    key = localized_error_key(status=status, error_code=error_code, message=text)
+    if key:
+        return translate(key, locale)
+    return safe_text
+
+
 def _format_forecast_percent(value: float | None) -> str:
     if value is None or not math.isfinite(value):
         return "--"
@@ -200,31 +245,59 @@ def _format_forecast_percent(value: float | None) -> str:
     return f"{rounded:.1f}".rstrip("0").rstrip(".")
 
 
-def _forecast_lines(snapshot: Any) -> list[str]:
+def _forecast_lines(snapshot: Any, locale: Any) -> list[str]:
     forecast = calculate_usage_forecast(snapshot)
     if forecast.status == "insufficient_data":
         return []
 
-    lines = [f"平均消耗：{_format_forecast_percent(forecast.average_daily_percent)}%／天"]
-
-    if forecast.estimated_exhaustion_seconds is not None:
-        lines.append(f"預估 {format_duration(forecast.estimated_exhaustion_seconds)}後用完")
-    elif forecast.status == "no_usage":
-        lines.append("預估耗盡：目前未觀測到消耗")
-
+    average = _format_forecast_percent(forecast.average_daily_percent)
     projected = forecast.projected_remaining_percent
+    if normalize_locale(locale) == "en":
+        if forecast.estimated_exhaustion_seconds is not None:
+            lines = [
+                translate(
+                    "forecast.compact_rate",
+                    locale,
+                    value=average,
+                    duration=format_duration(forecast.estimated_exhaustion_seconds, locale),
+                )
+            ]
+        else:
+            lines = [translate("forecast.compact_rate_no_usage", locale, value=average)]
+        if projected is not None and forecast.status == "at_risk":
+            lines.append(translate("forecast.compact_risk", locale))
+        elif projected is not None:
+            key = "forecast.compact_reset_no_usage" if forecast.status == "no_usage" else "forecast.compact_reset"
+            lines.append(translate(key, locale, value=_format_forecast_percent(projected)))
+        return lines
+
+    lines = [translate("forecast.average", locale, value=average)]
+    if forecast.estimated_exhaustion_seconds is not None:
+        lines.append(
+            translate(
+                "forecast.exhaustion",
+                locale,
+                duration=format_duration(forecast.estimated_exhaustion_seconds, locale),
+            )
+        )
+    elif forecast.status == "no_usage":
+        lines.append(translate("forecast.no_usage", locale))
+
     if projected is not None and forecast.status == "at_risk":
         lines.append(
-            "重置前：可能提前用完"
-            f"（約超出 {_format_forecast_percent(abs(projected))}%）"
+            translate(
+                "forecast.at_risk",
+                locale,
+                value=_format_forecast_percent(abs(projected)),
+            )
         )
-        lines.append("判斷：可能在 reset 前用完")
+        lines.append(translate("forecast.judgment_risk", locale))
     elif projected is not None:
-        lines.append(f"重置前：約 {_format_forecast_percent(projected)}%")
+        lines.append(translate("forecast.projected", locale, value=_format_forecast_percent(projected)))
         if forecast.status == "no_usage":
-            lines.append("判斷：目前未觀測到消耗")
+            lines.append(translate("forecast.judgment_no_usage", locale))
         else:
-            lines.append("判斷：照目前速度可撐到 reset")
+            lines.append(translate("forecast.judgment_on_track", locale))
     return lines
 
 
@@ -234,58 +307,68 @@ def format_tooltip(
     status: str | None = None,
     error_message: str | None = None,
     last_success_at: Any = None,
+    locale: Any = DEFAULT_LOCALE,
 ) -> str:
     """Format only display-safe fields from a provider result."""
 
     current_status = _status(snapshot, status)
-    remaining = _remaining_text(snapshot)
-    has_value = remaining not in {"--", "未知"}
+    remaining = _remaining_text(snapshot, locale)
+    has_value = _value(snapshot, "unlimited") is True or _remaining_value(snapshot) is not None
     plan_type = _value(snapshot, "plan_type", "plan")
-    plan = _plan_name(str(plan_type) if plan_type is not None else None)
+    plan = _plan_name(str(plan_type) if plan_type is not None else None, locale)
     lines: list[str] = []
 
     if has_value:
         display_remaining = f"{remaining}*" if current_status == "stale" else remaining
-        lines.append(f"Codex 剩餘 {display_remaining} · {plan}")
+        lines.append(translate("tooltip.remaining", locale, remaining=display_remaining, plan=plan))
     else:
-        lines.append(f"Codex 額度：{status_message(current_status)}")
+        lines.append(translate("tooltip.quota_status", locale, status=status_message(current_status, locale)))
 
     if current_status == "stale":
-        lines.append("資料過期（顯示上次成功資料）")
+        lines.append(translate("tooltip.stale", locale))
 
     used = _value(snapshot, "used_percent", "used")
     if used is not None:
         used = _number(used)
         if used is not None:
             unit = str(_value(snapshot, "unit", default="%"))
-            lines.append(f"使用率：{used:g}{unit}" if isinstance(used, float) else f"使用率：{used}{unit}")
+            display_used = f"{used:g}{unit}" if isinstance(used, float) else f"{used}{unit}"
+            lines.append(translate("tooltip.usage", locale, used=display_used, unit=""))
 
     reset_after = _value(snapshot, "reset_after_seconds")
     if reset_after is not None:
-        lines.append(f"距離重置：{format_duration(reset_after)}")
+        lines.append(
+            translate("tooltip.reset_after", locale, duration=format_duration(reset_after, locale))
+        )
     else:
         reset_at = _value(snapshot, "reset_at")
         if reset_at is not None:
-            lines.append(f"重置時間：{_format_timestamp(reset_at) or '未知'}")
+            lines.append(translate("tooltip.reset_at", locale, time=_format_timestamp(reset_at) or translate("duration.unknown", locale)))
 
     if current_status in {"ok", "stale"}:
-        lines.extend(_forecast_lines(snapshot))
+        lines.extend(_forecast_lines(snapshot, locale))
 
     credits = _value(snapshot, "credits_balance")
     if credits is not None:
-        lines.append(f"Credits 餘額：{credits}")
+        lines.append(translate("tooltip.credits", locale, credits=credits))
     if _value(snapshot, "overage_limit_reached") is True:
-        lines.append("已達超額上限")
+        lines.append(translate("tooltip.overage", locale))
+
+    safe_error = error_message or _value(snapshot, "error", "error_message")
+    if safe_error:
+        message = _localized_error_message(
+            safe_error,
+            locale=locale,
+            status=current_status,
+            error_code=_value(snapshot, "error_code"),
+        )
+        lines.append(translate("tooltip.reason", locale, message=message))
 
     success_time = last_success_at or _value(snapshot, "last_success_at", "retrieved_at", "fetched_at")
     if current_status == "stale" or (not has_value and success_time is not None):
         formatted = _format_timestamp(success_time)
         if formatted:
-            lines.append(f"上次成功：{formatted}")
-
-    safe_error = error_message or _value(snapshot, "error", "error_message")
-    if safe_error:
-        lines.append(f"原因：{redact_error_message(safe_error)}")
+            lines.append(translate("tooltip.last_success", locale, time=formatted))
 
     text = "\n".join(lines)
     if len(text) <= MAX_TOOLTIP_LENGTH:

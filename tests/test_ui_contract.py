@@ -20,7 +20,7 @@ class BalancePresentationTests(unittest.TestCase):
 
         self.assertEqual(format_tray_title(result), "--")
         tooltip = format_tooltip(result)
-        self.assertIn("尚未登入", tooltip)
+        self.assertIn("Codex is not signed in", tooltip)
         self.assertNotIn("100%", tooltip)
 
     def test_stale_result_is_explicitly_marked_with_last_success_time(self):
@@ -37,9 +37,9 @@ class BalancePresentationTests(unittest.TestCase):
 
         self.assertEqual(format_tray_title(result), "63%*")
         tooltip = format_tooltip(result)
-        self.assertIn("資料過期", tooltip)
+        self.assertIn("Stale data", tooltip)
         self.assertIn("2026", tooltip)
-        self.assertIn("網路暫時無法連線", tooltip)
+        self.assertIn("Network unavailable", tooltip)
 
     def test_tooltip_redacts_credentials_from_provider_error(self):
         result = BalanceResult(

@@ -98,7 +98,7 @@ class PresentationTests(unittest.TestCase):
         self.assertIn("Codex", tooltip)
         self.assertIn("63%", tooltip)
         self.assertIn("Plus", tooltip)
-        self.assertIn("1 小時 1 分鐘", tooltip)
+        self.assertIn("Reset in: 1 hour 1 minute", tooltip)
 
 
 if __name__ == "__main__":

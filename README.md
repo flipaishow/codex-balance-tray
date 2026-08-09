@@ -10,7 +10,8 @@ Windows 通知區工具：在通知區圖示顯示 Codex ChatGPT 方案主要額
 - 剩餘比例超過 50% 顯示綠色、21–50% 顯示黃色、20% 以下顯示紅色；未知或不可用時顯示灰色。
 - Tooltip 顯示方案、使用率、重置倒數／時間、Credits 餘額、資料取得時間與安全錯誤狀態。
 - 觀察時間與視窗資料足夠時，另外顯示線性估算的平均每日消耗、預估耗盡時間、重置前預估剩餘與風險判斷。
-- 右鍵選單支援立即重新整理、更新間隔（1／5／15／30 分鐘）、詳細資訊與結束。
+- 介面預設使用英文；右鍵選單可切換 English／繁體中文，選擇會保存到使用者設定並在下次啟動時沿用。
+- 右鍵選單支援立即重新整理、更新間隔（1／5／15／30 分鐘）、語言、詳細資訊與結束。
 - 缺少或格式錯誤的數值不會被猜成 `0%` 或 `100%`；已有上次成功資料時，錯誤期間會保留並明確標示為過期。
 
 ## 資料來源與認證邊界
@@ -46,6 +47,9 @@ python main.py
 第一次啟動時，程式會 best-effort 將目前的啟動命令寫入目前 Windows 使用者的
 `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`，讓通知區圖示在登入 Windows 時自動啟動。這是使用者自己的設定，不需要系統管理員權限；可從 Windows 的「工作管理員 → 啟動」停用 `CodexBalanceTray`。
 
+語言偏好只保存 locale 名稱，不保存 token 或額度資料；Windows 預設位置是
+`%APPDATA%\\CodexBalanceTray\\settings.json`。新安裝或無有效設定檔時預設為 English。
+
 ## 測試
 
 測試使用模擬的 app-server JSONL 與 HTTP 回應，不需要本機登入或真實網路：
@@ -72,6 +76,7 @@ python -m PyInstaller --noconfirm --clean CodexBalanceTray.spec
 
 ```text
 codex_tray/                 核心 provider、資料模型、監控器與通知區 UI
+codex_tray/i18n.py         英文預設、繁體中文翻譯與語言偏好保存
 codex_tray/balance.py       app-server／HTTP provider 與安全錯誤分類
 codex_tray/forecast.py      保守的額度耗盡線性估算
 tests/                      離線單元與 provider contract 測試

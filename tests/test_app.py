@@ -48,7 +48,7 @@ class TrayApplicationTests(unittest.TestCase):
 
         app._on_update(self._snapshot())
 
-        self.assertEqual(app.icon.title.splitlines()[0], "Codex 剩餘 63% · Plus")
+        self.assertEqual(app.icon.title.splitlines()[0], "Codex 63% remaining · Plus")
         self.assertEqual(app.icon.icon.size, (64, 64))
 
     def test_error_keeps_tray_alive_and_shows_recovery_hint(self):
@@ -56,9 +56,10 @@ class TrayApplicationTests(unittest.TestCase):
         app = TrayApplication(icon_factory=factory)
         app._create_icon()
 
-        app._on_error("請先在 Codex 重新登入")
+        app._on_error("Codex login required")
 
-        self.assertIn("重新登入", app.icon.title)
+        self.assertIn("Codex is not signed in", app.icon.title)
+        self.assertIn("Codex login is required", app.icon.title)
         self.assertFalse(app.icon.stopped)
 
 

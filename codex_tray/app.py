@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
 import threading
 import webbrowser
 from typing import Any
@@ -11,6 +12,14 @@ from typing import Any
 import pystray
 
 from .balance import BalanceResult, CodexBalanceProvider
+from .i18n import (
+    DEFAULT_LOCALE,
+    LocaleStore,
+    SUPPORTED_LOCALES,
+    language_label,
+    normalize_locale,
+    translate,
+)
 from .icon import create_icon_image, set_windows_dpi_awareness
 from .monitor import UsageMonitor
 from .presentation import format_tooltip
@@ -19,10 +28,10 @@ from .presentation import format_tooltip
 USAGE_URL = "https://chatgpt.com/codex/settings/usage"
 DEFAULT_POLL_INTERVAL_SECONDS = 300
 INTERVAL_OPTIONS = (
-    (60, "每 1 分鐘"),
-    (300, "每 5 分鐘"),
-    (900, "每 15 分鐘"),
-    (1800, "每 30 分鐘"),
+    (60, "interval.60"),
+    (300, "interval.300"),
+    (900, "interval.900"),
+    (1800, "interval.1800"),
 )
 
 
@@ -32,9 +41,13 @@ def _empty_result() -> BalanceResult:
 
 def _error_status(message: str) -> str:
     lowered = message.lower()
-    if any(token in message for token in ("登入", "認證", "token", "auth")) or "login" in lowered:
+    if any(token in message for token in ("登入", "認證", "token", "auth")) or any(
+        token in lowered for token in ("login", "sign in", "signed in", "credential")
+    ):
         return "auth_required"
-    if any(token in message for token in ("網路", "連線", "timeout", "逾時", "dns")):
+    if any(token in message for token in ("網路", "連線", "timeout", "逾時", "dns")) or any(
+        token in lowered for token in ("network", "connection", "unavailable")
+    ):
         return "network_error"
     return "service_error"
 
@@ -49,6 +62,9 @@ class TrayApplication:
         provider: Any | None = None,
         poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
         icon_factory: Callable[..., Any] | None = None,
+        locale: str | None = None,
+        language_path: str | Path | None = None,
+        locale_store: LocaleStore | None = None,
     ) -> None:
         # ``client`` remains a compatibility alias for callers of the initial
         # skeleton. New code should pass ``provider``.
@@ -61,10 +77,15 @@ class TrayApplication:
         )
         self.client = self.provider
         self.icon_factory = icon_factory or pystray.Icon
+        self.locale_store = locale_store or LocaleStore(language_path)
+        self.locale = normalize_locale(locale) if locale is not None else self.locale_store.load()
         self.icon: Any | None = None
         self._current_result: Any = _empty_result()
         self._last_good_result: Any | None = None
         self._last_success_at: Any | None = None
+        self._render_status: str | None = None
+        self._render_error_message: str | None = None
+        self._render_last_success_at: Any = None
         self.monitor = UsageMonitor(
             self.provider,
             on_update=self._on_update,
@@ -79,32 +100,55 @@ class TrayApplication:
     def set_poll_interval(self, seconds: float) -> None:
         self.monitor.set_interval(seconds)
 
-    def _interval_item(self, seconds: int, label: str) -> Any:
+    def _interval_item(self, seconds: int, label_key: str) -> Any:
         def select(_icon: Any, _item: Any) -> None:
             self.set_poll_interval(seconds)
 
         def checked(_item: Any) -> bool:
             return self.poll_interval_seconds == seconds
 
-        return pystray.MenuItem(label, select, checked=checked, radio=True)
+        return pystray.MenuItem(
+            translate(label_key, self.locale),
+            select,
+            checked=checked,
+            radio=True,
+        )
+
+    def _language_item(self, locale: str) -> Any:
+        def select(_icon: Any, _item: Any) -> None:
+            self.set_locale(locale)
+
+        def checked(_item: Any) -> bool:
+            return self.locale == locale
+
+        return pystray.MenuItem(
+            language_label(locale, self.locale),
+            select,
+            checked=checked,
+            radio=True,
+        )
+
+    def _build_menu(self) -> Any:
+        interval_menu = pystray.Menu(
+            *(self._interval_item(seconds, label_key) for seconds, label_key in INTERVAL_OPTIONS)
+        )
+        language_menu = pystray.Menu(*(self._language_item(locale) for locale in SUPPORTED_LOCALES))
+        return pystray.Menu(
+            pystray.MenuItem(translate("menu.refresh_now", self.locale), self._manual_refresh),
+            pystray.MenuItem(translate("menu.refresh_interval", self.locale), interval_menu),
+            pystray.MenuItem(translate("menu.language", self.locale), language_menu),
+            pystray.MenuItem(translate("menu.open_details", self.locale), self._open_usage),
+            pystray.MenuItem(translate("menu.quit", self.locale), self._quit),
+        )
 
     def _create_icon(self) -> Any:
         if self.icon is not None:
             return self.icon
-        interval_menu = pystray.Menu(
-            *(self._interval_item(seconds, label) for seconds, label in INTERVAL_OPTIONS)
-        )
-        menu = pystray.Menu(
-            pystray.MenuItem("立即重新整理", self._manual_refresh),
-            pystray.MenuItem("更新間隔", interval_menu),
-            pystray.MenuItem("開啟詳細資訊", self._open_usage),
-            pystray.MenuItem("結束", self._quit),
-        )
         self.icon = self.icon_factory(
             "codex-tray",
             create_icon_image(self._current_result),
-            "Codex：正在取得額度…",
-            menu=menu,
+            format_tooltip(self._current_result, locale=self.locale),
+            menu=self._build_menu(),
         )
         return self.icon
 
@@ -117,6 +161,9 @@ class TrayApplication:
         last_success_at: Any = None,
     ) -> None:
         self._current_result = result
+        self._render_status = status
+        self._render_error_message = error_message
+        self._render_last_success_at = last_success_at
         if self.icon is None:
             return
         self.icon.icon = create_icon_image(result, status=status)
@@ -125,7 +172,23 @@ class TrayApplication:
             status=status,
             error_message=error_message,
             last_success_at=last_success_at,
+            locale=self.locale,
         )
+
+    def set_locale(self, locale: str) -> str:
+        """Switch the UI language, persist it, and refresh visible strings."""
+
+        self.locale = normalize_locale(locale)
+        self.locale_store.save(self.locale)
+        if self.icon is not None:
+            self.icon.menu = self._build_menu()
+            self._render(
+                self._current_result,
+                status=self._render_status,
+                error_message=self._render_error_message,
+                last_success_at=self._render_last_success_at,
+            )
+        return self.locale
 
     def _on_update(self, result: Any) -> None:
         self._current_result = result

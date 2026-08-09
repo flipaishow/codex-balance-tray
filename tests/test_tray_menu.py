@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from codex_tray.app import TrayApplication
@@ -10,7 +12,11 @@ class _FakeIcon:
     def __init__(self):
         self.icon = None
         self.title = ""
+        self.menu = None
         self.stopped = False
+
+    def update_menu(self):
+        return None
 
     def stop(self):
         self.stopped = True
@@ -41,10 +47,41 @@ class TrayMenuTests(unittest.TestCase):
 
         menu = factory.kwargs["menu"]
         labels = [item.text for item in menu]
-        self.assertIn("立即重新整理", labels)
-        self.assertIn("更新間隔", labels)
-        self.assertIn("開啟詳細資訊", labels)
-        self.assertIn("結束", labels)
+        self.assertIn("Refresh now", labels)
+        self.assertIn("Refresh interval", labels)
+        self.assertIn("Open details", labels)
+        self.assertIn("Language", labels)
+        self.assertIn("Quit", labels)
+
+    def test_language_menu_defaults_to_english_and_switches_to_traditional_chinese(self):
+        with tempfile.TemporaryDirectory() as directory:
+            factory = _FakeIconFactory()
+            app = TrayApplication(
+                provider=MockBalanceProvider(),
+                icon_factory=factory,
+                language_path=Path(directory) / "settings.json",
+            )
+            app._create_icon()
+            app._on_update(
+                BalanceResult(
+                    status="ok",
+                    balance=63,
+                    remaining_percent=63,
+                    unit="%",
+                    plan_type="plus",
+                )
+            )
+
+            self.assertEqual(app.locale, "en")
+            self.assertIn("Codex 63% remaining", factory.icon.title)
+
+            app.set_locale("zh-TW")
+
+            labels = [item.text for item in factory.icon.menu]
+            self.assertEqual(app.locale, "zh-TW")
+            self.assertIn("立即重新整理", labels)
+            self.assertIn("語言", labels)
+            self.assertIn("Codex 剩餘 63%", factory.icon.title)
 
     def test_setting_interval_updates_monitor_without_fetching(self):
         provider = MockBalanceProvider()
@@ -69,11 +106,11 @@ class TrayMenuTests(unittest.TestCase):
             )
         )
 
-        app._on_error("網路暫時無法連線")
+        app._on_error("Network temporarily unavailable")
 
         self.assertIn("63%*", app.icon.title)
-        self.assertIn("資料過期", app.icon.title)
-        self.assertIn("網路暫時無法連線", app.icon.title)
+        self.assertIn("Stale data", app.icon.title)
+        self.assertIn("Network unavailable", app.icon.title)
 
     def test_manual_refresh_does_not_run_provider_on_tray_callback(self):
         provider = MockBalanceProvider()
