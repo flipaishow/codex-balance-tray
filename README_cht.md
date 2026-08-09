@@ -1,6 +1,6 @@
 # Codex Balance Tray
 
-[English README](README.md) ｜ 繁體中文
+[English README](README.md) ｜ [简体中文](README_chs.md) ｜ [日本語](README_jp.md) ｜ 繁體中文
 
 Windows 通知區工具：在通知區圖示顯示 Codex ChatGPT 方案主要額度視窗的剩餘百分比、重置資訊與安全狀態。
 
@@ -12,7 +12,7 @@ Windows 通知區工具：在通知區圖示顯示 Codex ChatGPT 方案主要額
 - 剩餘比例超過 50% 顯示綠色、21–50% 顯示黃色、20% 以下顯示紅色；未知或不可用時顯示灰色。
 - Tooltip 顯示方案、使用率、重置倒數／時間、Credits 餘額、資料取得時間與安全錯誤狀態。
 - 觀察時間與視窗資料足夠時，另外顯示線性估算的平均每日消耗、預估耗盡時間、重置前預估剩餘與風險判斷。
-- 介面預設使用英文；右鍵選單可切換 English／繁體中文，選擇會保存到使用者設定並在下次啟動時沿用。
+- 介面預設使用英文；右鍵選單可切換 English／繁體中文／简体中文／日本語，選擇會保存到使用者設定並在下次啟動時沿用。
 - 右鍵選單支援立即重新整理、更新間隔（1／5／15／30 分鐘）、語言、詳細資訊與結束。
 - 缺少或格式錯誤的數值不會被猜成 `0%` 或 `100%`；已有上次成功資料時，錯誤期間會保留並明確標示為過期。
 
@@ -78,7 +78,7 @@ python -m PyInstaller --noconfirm --clean CodexBalanceTray.spec
 
 ```text
 codex_tray/                  核心 provider、資料模型、監控器與通知區 UI
-codex_tray/i18n.py           英文預設、繁體中文翻譯與語言偏好保存
+codex_tray/i18n.py           英文預設、繁體中文／簡體中文／日文翻譯與語言偏好保存
 codex_tray/balance.py        app-server／HTTP provider 與安全錯誤分類
 codex_tray/forecast.py       保守的額度耗盡線性估算
 tests/                       離線單元與 provider contract 測試

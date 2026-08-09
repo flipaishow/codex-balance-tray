@@ -7,6 +7,8 @@ from codex_tray.i18n import (
     DEFAULT_LOCALE,
     LocaleStore,
     SUPPORTED_LOCALES,
+    language_label,
+    normalize_locale,
     translate,
 )
 from codex_tray.presentation import format_tooltip
@@ -21,14 +23,23 @@ class InternationalizationTests(unittest.TestCase):
             self.assertEqual(DEFAULT_LOCALE, "en")
             self.assertEqual(translate("menu.quit"), "Quit")
 
-    def test_locale_store_persists_supported_locale(self):
+    def test_locale_store_persists_all_supported_locales(self):
+        expected = ("en", "zh-TW", "zh-CN", "ja-JP")
+        self.assertEqual(SUPPORTED_LOCALES, expected)
         with tempfile.TemporaryDirectory() as directory:
             store = LocaleStore(Path(directory) / "settings.json")
 
-            self.assertTrue(store.save("zh-TW"))
-            self.assertEqual(store.load(), "zh-TW")
-            self.assertIn("en", SUPPORTED_LOCALES)
-            self.assertIn("zh-TW", SUPPORTED_LOCALES)
+            for locale in expected:
+                self.assertTrue(store.save(locale))
+                self.assertEqual(store.load(), locale)
+
+    def test_locale_aliases_normalize_to_supported_locales(self):
+        self.assertEqual(normalize_locale("zh-Hans"), "zh-CN")
+        self.assertEqual(normalize_locale("zh-CN"), "zh-CN")
+        self.assertEqual(normalize_locale("ja"), "ja-JP")
+        self.assertEqual(normalize_locale("ja_JP"), "ja-JP")
+        self.assertEqual(language_label("zh-CN", "en"), "Simplified Chinese")
+        self.assertEqual(language_label("ja-JP", "ja-JP"), "日本語")
 
     def test_unknown_locale_falls_back_to_english(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -38,7 +49,7 @@ class InternationalizationTests(unittest.TestCase):
             self.assertEqual(LocaleStore(path).load(), "en")
             self.assertEqual(translate("menu.quit", "fr-FR"), "Quit")
 
-    def test_presentation_defaults_to_english_and_supports_traditional_chinese(self):
+    def test_presentation_supports_all_requested_locales(self):
         result = BalanceResult(
             status="ok",
             balance=63,
@@ -50,11 +61,31 @@ class InternationalizationTests(unittest.TestCase):
 
         english = format_tooltip(result)
         traditional_chinese = format_tooltip(result, locale="zh-TW")
+        simplified_chinese = format_tooltip(result, locale="zh-CN")
+        japanese = format_tooltip(result, locale="ja-JP")
 
         self.assertIn("Codex 63% remaining · Plus", english)
         self.assertIn("Reset in: 1 hour 1 minute", english)
         self.assertIn("Codex 剩餘 63% · Plus", traditional_chinese)
         self.assertIn("距離重置：1 小時 1 分鐘", traditional_chinese)
+        self.assertIn("Codex 剩余 63% · Plus", simplified_chinese)
+        self.assertIn("距离重置：1 小时 1 分钟", simplified_chinese)
+        self.assertIn("Codex 残り 63% · Plus", japanese)
+        self.assertIn("リセットまで：1 時間 1 分", japanese)
+
+    def test_status_and_error_texts_are_localized(self):
+        result = BalanceResult(
+            status="auth_required",
+            error_message="请先登录 Codex",
+        )
+
+        simplified_chinese = format_tooltip(result, locale="zh-CN")
+        japanese = format_tooltip(result, locale="ja-JP")
+
+        self.assertIn("尚未登录 Codex", simplified_chinese)
+        self.assertIn("需要登录 Codex", simplified_chinese)
+        self.assertIn("Codex にログインしていません", japanese)
+        self.assertIn("Codex へのログインが必要です", japanese)
 
 
 if __name__ == "__main__":

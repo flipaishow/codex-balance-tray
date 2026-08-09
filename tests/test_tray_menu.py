@@ -83,6 +83,19 @@ class TrayMenuTests(unittest.TestCase):
             self.assertIn("語言", labels)
             self.assertIn("Codex 剩餘 63%", factory.icon.title)
 
+    def test_language_menu_exposes_all_four_supported_locales(self):
+        factory = _FakeIconFactory()
+        app = TrayApplication(provider=MockBalanceProvider(), icon_factory=factory)
+
+        app._create_icon()
+
+        language_item = next(item for item in factory.kwargs["menu"] if item.text == "Language")
+        labels = [item.text for item in language_item.submenu]
+        self.assertEqual(
+            labels,
+            ["English", "Traditional Chinese", "Simplified Chinese", "Japanese"],
+        )
+
     def test_setting_interval_updates_monitor_without_fetching(self):
         provider = MockBalanceProvider()
         app = TrayApplication(provider=provider, icon_factory=_FakeIconFactory())

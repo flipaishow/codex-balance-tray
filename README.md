@@ -2,7 +2,7 @@
 
 A Windows notification-area utility that displays the remaining percentage, reset information, and safe status of the primary quota window for a Codex ChatGPT plan.
 
-[Chinese README](README_cht.md)
+[Traditional Chinese](README_cht.md) · [Simplified Chinese](README_chs.md) · [日本語](README_jp.md)
 
 > This repository contains only publishable source code, offline test fixtures, and documentation. It does not contain Codex credentials, raw traces, research citation caches, model files, or build artifacts.
 
@@ -12,7 +12,7 @@ A Windows notification-area utility that displays the remaining percentage, rese
 - Uses green above 50%, yellow from 21–50%, red at 20% or below, and gray for unknown or unavailable data.
 - Shows the plan, usage, reset countdown/time, Credits balance, retrieval time, and safe error status in the tooltip.
 - When enough observations and complete window data are available, shows a conservative linear estimate of average daily usage, estimated exhaustion time, projected remaining quota at reset, and risk assessment.
-- Uses English by default. The tray context menu can switch between English and Traditional Chinese, and the choice is restored on the next launch.
+- Uses English by default. The tray context menu can switch among English, Traditional Chinese, Simplified Chinese, and Japanese, and the choice is restored on the next launch.
 - The context menu supports refresh now, refresh intervals (1/5/15/30 minutes), language, details, and quit.
 - Missing or malformed values are never guessed as `0%` or `100%`; after a successful result, failures retain the value and mark it explicitly as stale.
 
@@ -78,7 +78,7 @@ The artifact is written to `dist/CodexBalanceTray.exe`; `build` and `dist` are i
 
 ```text
 codex_tray/                  provider, data model, monitor, and tray UI
-codex_tray/i18n.py           English default, Traditional Chinese, and locale persistence
+codex_tray/i18n.py           English default, Traditional Chinese, Simplified Chinese, Japanese, and locale persistence
 codex_tray/balance.py        app-server/HTTP providers and safe error classification
 codex_tray/forecast.py       conservative linear quota-exhaustion estimate
 tests/                       offline unit and provider contract tests

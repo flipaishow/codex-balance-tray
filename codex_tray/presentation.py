@@ -146,8 +146,13 @@ def format_tray_title(
 
 
 def _duration_unit(value: int, unit: str, locale: Any) -> str:
-    if normalize_locale(locale) == "zh-TW":
-        labels = {"day": "天", "hour": "小時", "minute": "分鐘"}
+    selected = normalize_locale(locale)
+    labels = {
+        "zh-TW": {"day": "天", "hour": "小時", "minute": "分鐘"},
+        "zh-CN": {"day": "天", "hour": "小时", "minute": "分钟"},
+        "ja-JP": {"day": "日", "hour": "時間", "minute": "分"},
+    }.get(selected)
+    if labels is not None:
         return f"{value} {labels[unit]}"
     label = unit if value == 1 else f"{unit}s"
     return f"{value} {label}"
