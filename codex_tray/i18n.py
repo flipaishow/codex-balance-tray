@@ -94,6 +94,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "zh-TW": "資料過期（顯示上次成功資料）",
     },
     "tooltip.usage": {"en": "Usage: {used}{unit}", "zh-TW": "使用率：{used}{unit}"},
+    "tooltip.five_hour": {"en": "5-hour remaining: {remaining}", "zh-TW": "5 小時額度剩餘：{remaining}"},
+    "tooltip.weekly": {"en": "Weekly remaining: {remaining}", "zh-TW": "一週額度剩餘：{remaining}"},
     "tooltip.reset_after": {"en": "Reset in: {duration}", "zh-TW": "距離重置：{duration}"},
     "tooltip.reset_at": {"en": "Reset time: {time}", "zh-TW": "重置時間：{time}"},
     "tooltip.credits": {"en": "Credits balance: {credits}", "zh-TW": "Credits 餘額：{credits}"},

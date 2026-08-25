@@ -958,7 +958,15 @@ class AppServerBalanceClient:
                 send({"method": "account/read", "id": 2, "params": {"refreshToken": False}})
                 account_response = read_response(2)
                 messages.append(account_response)
-                if "error" not in account_response and self._account_allows_rate_limits(account_response):
+                account_result = account_response.get("result")
+                account = account_result.get("account") if isinstance(account_result, Mapping) else None
+                requires_auth = account_result.get("requiresOpenaiAuth") if isinstance(account_result, Mapping) else None
+                should_read_rates = (
+                    account is None and requires_auth is False
+                ) or (
+                    isinstance(account, Mapping) and account.get("type") == "chatgpt"
+                )
+                if "error" not in account_response and should_read_rates:
                     send({"method": "account/rateLimits/read", "id": 3})
                     messages.append(read_response(3))
         except BaseException:
@@ -1090,6 +1098,16 @@ class AppServerBalanceClient:
                 error_code="SCHEMA_CHANGED",
                 error_message="Codex 回應格式已變更，暫時無法解析額度資料",
             )
+        # Some configured model providers make account/read intentionally
+        # anonymous (account=null, requiresOpenaiAuth=false) while the same
+        # app-server still returns the live ChatGPT rate-limit snapshot.
+        # The quota response is the authoritative value for this tray.
+        rate_response = by_id.get(3)
+        if isinstance(rate_response, Mapping) and "error" not in rate_response:
+            parsed_rate = parse_app_server_rate_limits(rate_response, now=self.now)
+            if parsed_rate.status == "ok":
+                return parsed_rate
+
         account = account_result.get("account")
         if account is None:
             return _result(
@@ -1116,7 +1134,6 @@ class AppServerBalanceClient:
                 error_message="目前登入方式沒有 ChatGPT Codex 額度資料",
             )
 
-        rate_response = by_id.get(3)
         if not isinstance(rate_response, Mapping):
             return _result(
                 status="service_error",

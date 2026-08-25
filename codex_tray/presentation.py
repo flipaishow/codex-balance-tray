@@ -306,6 +306,25 @@ def _forecast_lines(snapshot: Any, locale: Any) -> list[str]:
     return lines
 
 
+def _quota_window_lines(snapshot: Any, locale: Any) -> list[str]:
+    """Show both live buckets without deriving one from the other."""
+
+    lines: list[str] = []
+    for window in (_value(snapshot, "primary"), _value(snapshot, "secondary")):
+        if window is None:
+            continue
+        seconds = _value(window, "window_seconds")
+        remaining = _value(window, "remaining_percent")
+        if seconds is None or remaining is None:
+            continue
+        remaining_text = f"{remaining}%"
+        if 4 * 60 * 60 <= seconds <= 6 * 60 * 60:
+            lines.append(translate("tooltip.five_hour", locale, remaining=remaining_text))
+        elif 6 * 24 * 60 * 60 <= seconds <= 8 * 24 * 60 * 60:
+            lines.append(translate("tooltip.weekly", locale, remaining=remaining_text))
+    return lines
+
+
 def format_tooltip(
     snapshot: Any,
     *,
@@ -331,6 +350,9 @@ def format_tooltip(
 
     if current_status == "stale":
         lines.append(translate("tooltip.stale", locale))
+
+    if has_value:
+        lines.extend(_quota_window_lines(snapshot, locale))
 
     used = _value(snapshot, "used_percent", "used")
     if used is not None:

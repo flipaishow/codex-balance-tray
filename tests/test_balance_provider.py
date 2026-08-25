@@ -207,6 +207,33 @@ class AppServerBalanceClientTests(unittest.TestCase):
         self.assertEqual(json.loads(request_lines[2])["method"], "account/read")
         self.assertEqual(len(request_lines), 3)
 
+    def test_fetches_rate_limits_when_custom_provider_hides_account(self):
+        client = self._client_for(
+            [
+                {"id": 1, "result": {}},
+                {"id": 2, "result": {"account": None, "requiresOpenaiAuth": False}},
+                {
+                    "id": 3,
+                    "result": {
+                        "rateLimits": {
+                            "planType": "plus",
+                            "primary": {
+                                "usedPercent": 8,
+                                "windowDurationMins": 10080,
+                                "resetsAt": 1788138244,
+                            },
+                        }
+                    },
+                },
+            ]
+        )
+
+        result = client.fetch()
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.remaining_percent, 92)
+        self.assertEqual(result.window_seconds, 10080 * 60)
+
     def _client_for(self, lines):
         process = FakeProcess(lines)
         return AppServerBalanceClient(

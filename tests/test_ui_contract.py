@@ -1,7 +1,7 @@
 import threading
 import time
 import unittest
-from codex_tray.balance import BalanceResult
+from codex_tray.balance import BalanceResult, QuotaWindow
 from codex_tray.mock_provider import MockBalanceProvider
 from codex_tray.monitor import UsageMonitor
 from codex_tray.presentation import format_tooltip, format_tray_title
@@ -9,6 +9,23 @@ from codex_tray.usage import UsageError
 
 
 class BalancePresentationTests(unittest.TestCase):
+    def test_tooltip_shows_weekly_remaining_when_primary_is_five_hour_bucket(self):
+        result = BalanceResult(
+            status="ok",
+            balance=67,
+            remaining_percent=67,
+            used_percent=33,
+            unit="%",
+            primary=QuotaWindow("primary", 33, 67, 5 * 60 * 60, 1787685235),
+            secondary=QuotaWindow("secondary", 5, 95, 7 * 24 * 60 * 60, 1788272035),
+            plan_type="plus",
+        )
+
+        tooltip = format_tooltip(result, locale="zh-TW")
+
+        self.assertIn("一週額度剩餘：95%", tooltip)
+        self.assertIn("5 小時額度剩餘：67%", tooltip)
+
     def test_unavailable_result_never_looks_like_full_quota(self):
         result = BalanceResult(
             status="auth_required",
