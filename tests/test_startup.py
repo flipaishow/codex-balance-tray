@@ -66,13 +66,13 @@ class StartupTests(unittest.TestCase):
     def test_build_startup_command_for_source_script(self):
         command = build_startup_command(
             executable=Path(r"C:\Python311\python.exe"),
-            script=Path(r"C:\Test\Codex Balance\main.py"),
+            script=Path(r"C:\Users\PC\Codex Balance\main.py"),
             frozen=False,
         )
 
         self.assertEqual(
             command,
-            r'"C:\Python311\python.exe" "C:\Test\Codex Balance\main.py"',
+            r'"C:\Python311\python.exe" "C:\Users\PC\Codex Balance\main.py"',
         )
 
     def test_ensure_startup_enabled_registers_current_command(self):
@@ -102,7 +102,6 @@ class StartupTests(unittest.TestCase):
             [entry for entry in registry.opened_paths if entry[2] == registry.KEY_SET_VALUE],
             [],
         )
-
 
     def test_macos_builds_and_persists_a_launch_agent(self):
         with tempfile.TemporaryDirectory() as directory:

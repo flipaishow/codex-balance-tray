@@ -28,7 +28,7 @@ class FakeSession:
 
 
 class UsageClientTests(unittest.TestCase):
-    def _auth_file(self, token="test", account="test-account"):
+    def _auth_file(self, token="test-access-token", account="test-account"):
         directory = tempfile.TemporaryDirectory()
         path = Path(directory.name) / "auth.json"
         path.write_text(
@@ -62,7 +62,7 @@ class UsageClientTests(unittest.TestCase):
         self.assertEqual(len(session.calls), 1)
         url, kwargs = session.calls[0]
         self.assertEqual(url, "https://example.test/backend-api/wham/usage")
-        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test-access-token")
         self.assertEqual(kwargs["headers"]["ChatGPT-Account-Id"], "test-account")
         self.assertEqual(kwargs["headers"]["OAI-Product-Sku"], "codex")
         self.assertFalse(kwargs["allow_redirects"])

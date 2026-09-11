@@ -78,13 +78,13 @@ class InternationalizationTests(unittest.TestCase):
         japanese = format_tooltip(result, locale="ja-JP")
 
         self.assertIn("Codex 63% remaining · Plus", english)
-        self.assertIn("Reset in: 1 hour 1 minute", english)
+        self.assertNotIn("Reset in:", english)
         self.assertIn("Codex 剩餘 63% · Plus", traditional_chinese)
-        self.assertIn("距離重置：1 小時 1 分鐘", traditional_chinese)
+        self.assertNotIn("距離重置：", traditional_chinese)
         self.assertIn("Codex 剩余 63% · Plus", simplified_chinese)
-        self.assertIn("距离重置：1 小时 1 分钟", simplified_chinese)
+        self.assertNotIn("距离重置：", simplified_chinese)
         self.assertIn("Codex 残り 63% · Plus", japanese)
-        self.assertIn("リセットまで：1 時間 1 分", japanese)
+        self.assertNotIn("リセットまで：", japanese)
 
     def test_status_and_error_texts_are_localized(self):
         result = BalanceResult(

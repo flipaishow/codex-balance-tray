@@ -148,6 +148,7 @@ class QuotaWindow:
     remaining_percent: int | None
     window_seconds: int | None
     resets_at: int | None
+    reset_after_seconds: int | None = None
 
 
 @dataclass(frozen=True)
@@ -444,6 +445,11 @@ def _window_from_app_server(
         remaining_percent=100 - used,
         window_seconds=None if window_minutes is None else window_minutes * 60,
         resets_at=resets_at,
+        reset_after_seconds=(
+            None
+            if resets_at is None
+            else max(0, resets_at - _epoch_seconds(now))
+        ),
     )
 
 
@@ -647,6 +653,7 @@ def parse_http_usage_payload(
                 remaining_percent=100 - used_value,
                 window_seconds=window_seconds,
                 resets_at=reset_at,
+                reset_after_seconds=reset_after,
             )
 
         primary = parse_window(primary_data, "primary")

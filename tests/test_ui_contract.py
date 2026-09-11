@@ -26,6 +26,22 @@ class BalancePresentationTests(unittest.TestCase):
         self.assertIn("一週額度剩餘：95%", tooltip)
         self.assertIn("5 小時額度剩餘：67%", tooltip)
 
+    def test_tooltip_shows_separate_reset_remaining_time_for_both_windows(self):
+        result = BalanceResult(
+            status="ok",
+            balance=67,
+            remaining_percent=67,
+            unit="%",
+            primary=QuotaWindow("primary", 33, 67, 5 * 60 * 60, 1787685235, 90 * 60),
+            secondary=QuotaWindow("secondary", 5, 95, 7 * 24 * 60 * 60, 1788272035, 3 * 24 * 60 * 60),
+            plan_type="plus",
+        )
+
+        tooltip = format_tooltip(result, locale="zh-TW")
+
+        self.assertIn("5 小時後重置：1 小時 30 分鐘", tooltip)
+        self.assertIn("一週後重置：3 天", tooltip)
+
     def test_unavailable_result_never_looks_like_full_quota(self):
         result = BalanceResult(
             status="auth_required",

@@ -320,8 +320,18 @@ def _quota_window_lines(snapshot: Any, locale: Any) -> list[str]:
         remaining_text = f"{remaining}%"
         if 4 * 60 * 60 <= seconds <= 6 * 60 * 60:
             lines.append(translate("tooltip.five_hour", locale, remaining=remaining_text))
+            reset_after = _value(window, "reset_after_seconds")
+            if reset_after is not None:
+                lines.append(
+                    translate("tooltip.five_hour_reset", locale, duration=format_duration(reset_after, locale))
+                )
         elif 6 * 24 * 60 * 60 <= seconds <= 8 * 24 * 60 * 60:
             lines.append(translate("tooltip.weekly", locale, remaining=remaining_text))
+            reset_after = _value(window, "reset_after_seconds")
+            if reset_after is not None:
+                lines.append(
+                    translate("tooltip.weekly_reset", locale, duration=format_duration(reset_after, locale))
+                )
     return lines
 
 
@@ -361,16 +371,6 @@ def format_tooltip(
             unit = str(_value(snapshot, "unit", default="%"))
             display_used = f"{used:g}{unit}" if isinstance(used, float) else f"{used}{unit}"
             lines.append(translate("tooltip.usage", locale, used=display_used, unit=""))
-
-    reset_after = _value(snapshot, "reset_after_seconds")
-    if reset_after is not None:
-        lines.append(
-            translate("tooltip.reset_after", locale, duration=format_duration(reset_after, locale))
-        )
-    else:
-        reset_at = _value(snapshot, "reset_at")
-        if reset_at is not None:
-            lines.append(translate("tooltip.reset_at", locale, time=_format_timestamp(reset_at) or translate("duration.unknown", locale)))
 
     if current_status in {"ok", "stale"}:
         lines.extend(_forecast_lines(snapshot, locale))
